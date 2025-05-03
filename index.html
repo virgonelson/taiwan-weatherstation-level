@@ -92,13 +92,13 @@
             text-align: left;
         }
         #legend h3 {
-            font-size: 1em; /* 縮小圖例標題 */
+            font-size: 1em;
             margin-bottom: 8px;
         }
         .legend-item {
             display: flex;
             align-items: center;
-            margin-bottom: 4px; /* 減少間距 */
+            margin-bottom: 4px;
             font-size: 14px;
         }
         .legend-color {
@@ -201,10 +201,11 @@
             </div>
         </div>
     </div>
-    <footer>點選氣象站標記選擇到訪狀態，每次刷新網站計數歸零。       作者: Nelson</footer>
+    <footer>點選氣象站標記選擇到訪狀態，每次刷新網站計數歸零。 作者: Nelson</footer>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/leaflet-html2canvas@0.0.2/leaflet-html2canvas.js"></script>
     <script>
         // 清空 LocalStorage 以確保刷新時歸零
         localStorage.removeItem("weatherStationVisits");
@@ -287,19 +288,28 @@
 
         // 畫面截圖
         function takeScreenshot() {
-            html2canvas(document.body).then(canvas => {
-                const link = document.createElement("a");
-                link.download = `taiwan-weather-station-map-${new Date().toISOString().split("T")[0]}.png`;
-                link.href = canvas.toDataURL("image/png");
-                link.click();
-            });
+            const mapElement = document.getElementById("map");
+            const mapInstance = map;
+            setTimeout(() => {
+                L.html2canvas(mapInstance, {
+                    html2canvas: { useCORS: true },
+                    onrendered: function (canvas) {
+                        html2canvas(document.body, { useCORS: true }).then(bodyCanvas => {
+                            const link = document.createElement("a");
+                            link.download = `taiwan-weather-station-map-${new Date().toISOString().split("T")[0]}.png`;
+                            link.href = bodyCanvas.toDataURL("image/png");
+                            link.click();
+                        });
+                    }
+                });
+            }, 500); // 延遲 500ms 確保圖塊載入
         }
 
         // 初始化總等級
         calculateTotalLevel();
 
         // 初始化地圖
-        const map = L.map("map").setView([23.5, 121], 7);
+        const map = L.map("map").setView([24.0, 120.5], 7); // 中心向西北移動
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
