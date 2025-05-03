@@ -131,7 +131,7 @@
         }
         .status-button {
             display: block;
-            width: 100px;
+            width: 140px; /* 增加寬度以容納新文字 */
             margin: 5px auto;
             padding: 5px;
             background-color: #f8f8f8;
@@ -185,7 +185,7 @@
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #30cc70;"></div>
-                <span>訪問過 (等級 2)</span>
+                <span>短期出差或訪問過 (等級 2)</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #3598db;"></div>
@@ -205,7 +205,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://unpkg.com/leaflet-html2canvas@0.0.2/leaflet-html2canvas.js"></script>
     <script>
         // 清空 LocalStorage 以確保刷新時歸零
         localStorage.removeItem("weatherStationVisits");
@@ -261,7 +260,7 @@
         const levelColors = {
             4: "#e84c3d",  // 住宿過
             3: "#f1c40f",  // 工作過
-            2: "#30cc70",  // 訪問過
+            2: "#30cc70",  // 短期出差或訪問過
             1: "#3598db",  // 路過
             0: "#bdc3c7"   // 沒去過
         };
@@ -288,21 +287,29 @@
 
         // 畫面截圖
         function takeScreenshot() {
-            const mapElement = document.getElementById("map");
             const mapInstance = map;
-            setTimeout(() => {
-                L.html2canvas(mapInstance, {
-                    html2canvas: { useCORS: true },
-                    onrendered: function (canvas) {
-                        html2canvas(document.body, { useCORS: true }).then(bodyCanvas => {
-                            const link = document.createElement("a");
-                            link.download = `taiwan-weather-station-map-${new Date().toISOString().split("T")[0]}.png`;
-                            link.href = bodyCanvas.toDataURL("image/png");
-                            link.click();
-                        });
-                    }
-                });
-            }, 500); // 延遲 500ms 確保圖塊載入
+            mapInstance.invalidateSize(); // 確保地圖尺寸正確
+            mapInstance.once('load', () => {
+                setTimeout(() => {
+                    html2canvas(document.body, {
+                        useCORS: true,
+                        logging: true,
+                        allowTaint: true,
+                        foreignObjectRendering: true,
+                        scale: 2 // 提升清晰度
+                    }).then(canvas => {
+                        const link = document.createElement("a");
+                        link.download = `taiwan-weather-station-map-${new Date().toISOString().split("T")[0]}.png`;
+                        link.href = canvas.toDataURL("image/png");
+                        link.click();
+                    }).catch(err => {
+                        console.error("Screenshot error:", err);
+                        alert("截圖失敗，請嘗試手動截圖（Windows: Win + Shift + S；macOS: Cmd + Shift + 4）。");
+                    });
+                }, 1500); // 延遲 1500ms 確保圖塊載入
+            });
+            // 觸發地圖重新載入
+            mapInstance.fire('load');
         }
 
         // 初始化總等級
@@ -311,7 +318,8 @@
         // 初始化地圖
         const map = L.map("map").setView([24.0, 120.5], 7); // 中心向西北移動
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            crossOrigin: "anonymous" // 支援 CORS
         }).addTo(map);
 
         // 載入臺灣 GeoJSON
@@ -354,14 +362,14 @@
                     地址: ${station.address}<br>
                     <button class="status-button" data-level="4">住宿過</button>
                     <button class="status-button" data-level="3">工作過</button>
-                    <button class="status-button" data-level="2">訪問過</button>
+                    <button class="status-button" data-level="2">短期出差或訪問過</button>
                     <button class="status-button" data-level="1">路過</button>
                     <button class="status-button" data-level="0">沒去過</button>
                 `;
                 container.querySelectorAll(".status-button").forEach(button => {
                     L.DomEvent.addListener(button, "click", () => {
                         const level = parseInt(button.getAttribute("data-level"));
-                        const status = ["沒去過", "路過", "訪問過", "工作過", "住宿過"][level];
+                        const status = ["沒去過", "路過", "短期出差或訪問過", "工作過", "住宿過"][level];
                         userData[station.name] = { level, status };
                         localStorage.setItem("weatherStationVisits", JSON.stringify(userData));
                         marker.setIcon(L.divIcon({
