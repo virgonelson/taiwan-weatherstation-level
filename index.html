@@ -110,7 +110,8 @@
         .legend-controls {
             margin-top: 10px;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 10px;
         }
         .control-button {
             padding: 8px 15px;
@@ -120,6 +121,9 @@
             cursor: pointer;
             transition: background-color 0.2s;
             font-size: 14px;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
         }
         .control-button:hover {
             background-color: #e0e0e0;
@@ -169,34 +173,37 @@
     </style>
 </head>
 <body>
-    <h1>臺灣氣象站制縣等級</h1>
+    <h1 id="pageTitle">臺灣氣象站制縣等級</h1>
     <div id="totalLevel">制縣等級: 0</div>
     <div class="container">
         <div id="map"></div>
         <div id="legend">
             <h3>圖例</h3>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #e84c3d;"></div>
-                <span>住宿過 (等級 4)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #f1c40f;"></div>
-                <span>工作過 (等級 3)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #30cc70;"></div>
-                <span>短期出差或訪問過 (等級 2)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #3598db;"></div>
-                <span>路過 (等級 1)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background-color: #bdc3c7;"></div>
-                <span>沒去過 (等級 0)</span>
+            <div id="legendItems">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e84c3d;"></div>
+                    <span>住宿過 (等級 4)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f1c40f;"></div>
+                    <span>工作過 (等級 3)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #30cc70;"></div>
+                    <span>短期出差或訪問過 (等級 2)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #3598db;"></div>
+                    <span>路過 (等級 1)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #bdc3c7;"></div>
+                    <span>沒去過 (等級 0)</span>
+                </div>
             </div>
             <div class="legend-controls">
                 <button class="control-button" onclick="setUserName()">設定名字</button>
+                <button class="control-button" onclick="switchMode('marine')">海象站制縣等級</button>
             </div>
         </div>
     </div>
@@ -204,16 +211,30 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 清空 LocalStorage 以確保刷新時歸零
-        localStorage.removeItem("weatherStationVisits");
-        localStorage.removeItem("userName");
+        // 初始化地圖
+        const map = L.map("map").setView([24.0, 120.5], 7);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            crossOrigin: "anonymous"
+        }).addTo(map);
 
-        // 初始化用戶數據
-        let userData = {};
-        let userName = "";
+        // 載入臺灣 GeoJSON
+        fetch("https://raw.githubusercontent.com/tonytonyjan/taiwan-geojson/master/taiwan.json")
+            .then(response => response.json())
+            .then(geojson => {
+                L.geoJSON(geojson, {
+                    style: {
+                        fillColor: "#3388ff",
+                        weight: 1,
+                        opacity: 1,
+                        color: "white",
+                        fillOpacity: 0.7
+                    }
+                }).addTo(map);
+            });
 
-        // 氣象站數據（新增花蓮氣象雷達站）
-        const stations = [
+        // 氣象站數據
+        const weatherStations = [
             {"name": "五分山雷達站", "address": "新北市瑞芳區靜安路四段1巷1號", "lat": 25.071182, "lon": 121.781205},
             {"name": "新北", "address": "新北市新店區莒光路29號", "lat": 24.959207, "lon": 121.525196},
             {"name": "淡水", "address": "新北市淡水區中正東路42巷6號", "lat": 25.164889, "lon": 121.448906},
@@ -250,22 +271,91 @@
             {"name": "馬祖", "address": "連江縣南竿鄉四維村6鄰88號", "lat": 26.169467, "lon": 119.923158}
         ];
 
-        // 初始化用戶數據
-        stations.forEach(station => {
-            userData[station.name] = { level: 0, status: "沒去過" };
-        });
+        // 海象測站數據
+        const marineStations = [
+            {"name": "淡水潮位站", "address": "淡水河油車口", "lat": 25.17569, "lon": 121.42483},
+            {"name": "龍洞潮位站", "address": "龍洞遊艇港內", "lat": 25.0975, "lon": 121.9181},
+            {"name": "麟山鼻潮位站", "address": "石門鄉麟山鼻漁港", "lat": 25.2839, "lon": 121.5103},
+            {"name": "臺北港潮位站", "address": "臺北港第3港埠", "lat": 25.16, "lon": 121.36972},
+            {"name": "福隆潮位站", "address": "福隆漁港碼頭", "lat": 25.0217, "lon": 121.9503},
+            {"name": "淡海潮位站", "address": "漁人碼頭第3泊地外堤", "lat": 25.1839, "lon": 121.4075},
+            {"name": "基隆潮位站", "address": "基隆港西33號碼頭", "lat": 25.155, "lon": 121.7522},
+            {"name": "彭佳嶼潮位站", "address": "彭佳嶼海水淡化廠附近", "lat": 25.625, "lon": 122.07694},
+            {"name": "長潭里潮位站", "address": "北寧路369巷(潮境公園內)", "lat": 25.1406, "lon": 121.7998},
+            {"name": "竹圍潮位站", "address": "桃園竹圍漁港", "lat": 25.1181, "lon": 121.2433},
+            {"name": "新竹潮位站", "address": "新竹漁港南防波堤", "lat": 24.8486, "lon": 120.9206},
+            {"name": "外埔潮位站", "address": "海埔里外埔漁港", "lat": 24.6514, "lon": 120.7714},
+            {"name": "臺中港潮位站", "address": "臺中港四號碼頭", "lat": 24.2878, "lon": 120.5331},
+            {"name": "鹿港潮位站", "address": "彰化縣鹿港鎮崙尾灣漁港", "lat": 24.0849, "lon": 120.4204},
+            {"name": "萡子寮潮位站", "address": "雲林萡子寮漁港", "lat": 24.11388, "lon": 120.38055},
+            {"name": "塭港潮位站", "address": "塭港村漁港近海1公里觀測樁", "lat": 23.4667, "lon": 120.1225},
+            {"name": "東石潮位站", "address": "嘉義東石漁港", "lat": 23.45, "lon": 120.1394},
+            {"name": "將軍潮位站", "address": "臺南將軍漁港", "lat": 23.21163, "lon": 120.08302},
+            {"name": "高雄潮位站", "address": "高雄港", "lat": 22.6144, "lon": 120.2883},
+            {"name": "東沙島潮位站", "address": "東沙島內", "lat": 20.7, "lon": 116.69},
+            {"name": "小琉球潮位站", "address": "屏東縣琉球鄉之小琉球大福漁港外海南南西方約2公里處，水深100公尺", "lat": 22.3533, "lon": 120.3833},
+            {"name": "東港潮位站", "address": "東港漁港", "lat": 22.4651, "lon": 120.4383},
+            {"name": "後壁湖潮位站", "address": "屏東縣恆春鎮後壁湖港海巡隊前方", "lat": 21.9458, "lon": 120.7453},
+            {"name": "蘭嶼潮位站", "address": "蘭嶼開元漁港", "lat": 22.0577, "lon": 121.5079},
+            {"name": "成功潮位站", "address": "臺東縣成功漁港", "lat": 23.0972, "lon": 121.3799},
+            {"name": "花蓮潮位站", "address": "花蓮港內", "lat": 23.9806, "lon": 121.6236},
+            {"name": "蘇澳潮位站", "address": "蘇澳港內", "lat": 24.59247, "lon": 121.86577},
+            {"name": "烏石潮位站", "address": "宜蘭烏石港", "lat": 24.8686, "lon": 121.8396},
+            {"name": "馬祖潮位站", "address": "福澳港", "lat": 26.1617, "lon": 119.9428},
+            {"name": "馬公潮位站", "address": "澎湖馬公港", "lat": 23.5619, "lon": 119.5782},
+            {"name": "七美潮位站", "address": "七美漁港南防波堤，近紅燈塔", "lat": 23.19, "lon": 119.42},
+            {"name": "吉貝潮位站", "address": "吉貝碼頭，吉貝石滬文化館旁", "lat": 23.7386, "lon": 119.6132},
+            {"name": "東吉島潮位站", "address": "澎湖縣望安鄉東吉村東吉漁港", "lat": 23.2546, "lon": 119.6678},
+            {"name": "龍洞浮標", "address": "龍洞遊艇港外海，離岸約0.5公里，水深約27公尺", "lat": 25.09861, "lon": 121.92277},
+            {"name": "花蓮浮標", "address": "位於七星潭東方0.41234567890公里處，水深約22公尺", "lat": 24.0315, "lon": 121.6323},
+            {"name": "龜山島浮標", "address": "龜山島龜尾端西方0.8公里，水深約16.9公尺", "lat": 24.8469, "lon": 121.9267},
+            {"name": "小琉球浮標", "address": "小琉球大福漁港外海南南西方約2公里，水深約100公尺", "lat": 22.31694, "lon": 120.3758},
+            {"name": "大鵬灣浮標", "address": "東港大鵬灣外海約2公里，水深約20公尺", "lat": 22.417222, "lon": 120.438888},
+            {"name": "新竹浮標", "address": "海山漁港外海，離岸約6.4公里，水深約24.5公尺", "lat": 24.7633, "lon": 120.8441},
+            {"name": "富貴角浮標", "address": "新北市石門區富貴角西北方0.8公里，水深30公尺", "lat": 25.30388, "lon": 121.53277},
+            {"name": "彭佳嶼浮標", "address": "距彭佳嶼西南方1公里，水深52公尺", "lat": 25.62222, "lon": 122.06522},
+            {"name": "臺中浮標", "address": "距臺中港西方海域約6公里，水深約20公尺", "lat": 24.2375, "lon": 120.41444},
+            {"name": "臺東外洋浮標", "address": "蘭嶼東方210公里處，水深5522公尺", "lat": 21.6617, "lon": 124.0917},
+            {"name": "蘭嶼浮標", "address": "蘭嶼軍艦岩南方約0.9公里，水深50公尺", "lat": 22.0706, "lon": 121.5803},
+            {"name": "東沙島浮標", "address": "距高雄港西南方約224公里，水深2550公尺", "lat": 21.0556, "lon": 118.8533},
+            {"name": "馬祖浮標", "address": "連江縣東引島東南方約2.7公里，水深約52公尺", "lat": 26.3544, "lon": 120.5108},
+            {"name": "七美浮標", "address": "澎湖縣七美嶼東方22公里，水深50公尺", "lat": 23.1911, "lon": 119.6538},
+            {"name": "成功浮球", "address": "三仙臺海岬北面約700公尺，水深約25公尺", "lat": 23.13255, "lon": 121.42085},
+            {"name": "東吉島波浪站", "address": "澎湖縣東吉島東方，水深20公尺", "lat": 23.2565, "lon": 119.6839}
+        ];
+
+        // 初始化數據
+        let currentMode = "weather";
+        let weatherUserData = {};
+        let marineUserData = {};
+        let userName = "";
+        let markers = [];
 
         // 等級與顏色對應
         const levelColors = {
-            4: "#e84c3d",  // 住宿過
-            3: "#f1c40f",  // 工作過
-            2: "#30cc70",  // 短期出差或訪問過
-            1: "#3598db",  // 路過
-            0: "#bdc3c7"   // 沒去過
+            4: "#e84c3d",
+            3: "#f1c40f",
+            2: "#30cc70",
+            1: "#3598db",
+            0: "#bdc3c7"
         };
+
+        // 氣象站狀態
+        const weatherStatuses = ["沒去過", "路過", "短期出差或訪問過", "工作過", "住宿過"];
+        // 海象測站狀態
+        const marineStatuses = ["沒去過", "路過", "參觀過", "親手維護過", "出海過"];
+
+        // 初始化用戶數據
+        weatherStations.forEach(station => {
+            weatherUserData[station.name] = { level: 0, status: weatherStatuses[0] };
+        });
+        marineStations.forEach(station => {
+            marineUserData[station.name] = { level: 0, status: marineStatuses[0] };
+        });
 
         // 計算總等級並更新顯示
         function calculateTotalLevel() {
+            const userData = currentMode === "weather" ? weatherUserData : marineUserData;
             let total = 0;
             for (let station in userData) {
                 total += userData[station].level;
@@ -284,85 +374,118 @@
             }
         }
 
-        // 初始化總等級
-        calculateTotalLevel();
+        // 更新地圖標記
+        function updateMarkers() {
+            // 清除現有標記
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
 
-        // 初始化地圖
-        const map = L.map("map").setView([24.0, 120.5], 7);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            crossOrigin: "anonymous"
-        }).addTo(map);
+            const stations = currentMode === "weather" ? weatherStations : marineStations;
+            const userData = currentMode === "weather" ? weatherUserData : marineUserData;
+            const statuses = currentMode === "weather" ? weatherStatuses : marineStatuses;
 
-        // 載入臺灣 GeoJSON
-        fetch("https://raw.githubusercontent.com/tonytonyjan/taiwan-geojson/master/taiwan.json")
-            .then(response => response.json())
-            .then(geojson => {
-                L.geoJSON(geojson, {
-                    style: {
-                        fillColor: "#3388ff",
-                        weight: 1,
-                        opacity: 1,
-                        color: "white",
-                        fillOpacity: 0.7
-                    }
+            stations.forEach(station => {
+                const marker = L.marker([station.lat, station.lon], {
+                    icon: L.divIcon({
+                        className: "custom-icon",
+                        html: `
+                            <div style="position: relative;">
+                                <div class="marker-background"></div>
+                                <i class="fa-solid fa-cloud-sun" style="font-size: 20px; color: ${levelColors[userData[station.name].level]};"></i>
+                            </div>
+                            <div class="station-label" style="margin-top: 5px;">${station.name}</div>
+                        `,
+                        iconSize: [30, 40],
+                        iconAnchor: [15, 40]
+                    })
                 }).addTo(map);
-            });
 
-        // 為每個氣象站添加標記
-        stations.forEach(station => {
-            const marker = L.marker([station.lat, station.lon], {
-                icon: L.divIcon({
-                    className: "custom-icon",
-                    html: `
-                        <div style="position: relative;">
-                            <div class="marker-background"></div>
-                            <i class="fa-solid fa-cloud-sun" style="font-size: 20px; color: ${levelColors[userData[station.name].level]};"></i>
-                        </div>
-                        <div class="station-label" style="margin-top: 5px;">${station.name}</div>
-                    `,
-                    iconSize: [30, 40],
-                    iconAnchor: [15, 40]
-                })
-            }).addTo(map);
-
-            // 點選標記顯示選擇按鈕
-            marker.bindPopup(() => {
-                const container = L.DomUtil.create("div");
-                container.innerHTML = `
-                    <b>${station.name}</b><br>
-                    地址: ${station.address}<br>
-                    <button class="status-button" data-level="4">住宿過</button>
-                    <button class="status-button" data-level="3">工作過</button>
-                    <button class="status-button" data-level="2">短期出差或訪問過</button>
-                    <button class="status-button" data-level="1">路過</button>
-                    <button class="status-button" data-level="0">沒去過</button>
-                `;
-                container.querySelectorAll(".status-button").forEach(button => {
-                    L.DomEvent.addListener(button, "click", () => {
-                        const level = parseInt(button.getAttribute("data-level"));
-                        const status = ["沒去過", "路過", "短期出差或訪問過", "工作過", "住宿過"][level];
-                        userData[station.name] = { level, status };
-                        localStorage.setItem("weatherStationVisits", JSON.stringify(userData));
-                        marker.setIcon(L.divIcon({
-                            className: "custom-icon",
-                            html: `
-                                <div style="position: relative;">
-                                    <div class="marker-background"></div>
-                                    <i class="fa-solid fa-cloud-sun" style="font-size: 20px; color: ${levelColors[level]};"></i>
-                                </div>
-                                <div class="station-label" style="margin-top: 5px;">${station.name}</div>
-                            `,
-                            iconSize: [30, 40],
-                            iconAnchor: [15, 40]
-                        }));
-                        calculateTotalLevel();
-                        marker.closePopup();
+                marker.bindPopup(() => {
+                    const container = L.DomUtil.create("div");
+                    container.innerHTML = `
+                        <b>${station.name}</b><br>
+                        地址: ${station.address}<br>
+                        <button class="status-button" data-level="4">${statuses[4]}</button>
+                        <button class="status-button" data-level="3">${statuses[3]}</button>
+                        <button class="status-button" data-level="2">${statuses[2]}</button>
+                        <button class="status-button" data-level="1">${statuses[1]}</button>
+                        <button class="status-button" data-level="0">${statuses[0]}</button>
+                    `;
+                    container.querySelectorAll(".status-button").forEach(button => {
+                        L.DomEvent.addListener(button, "click", () => {
+                            const level = parseInt(button.getAttribute("data-level"));
+                            userData[station.name] = { level, status: statuses[level] };
+                            localStorage.setItem(currentMode === "weather" ? "weatherStationVisits" : "marineStationVisits", JSON.stringify(userData));
+                            marker.setIcon(L.divIcon({
+                                className: "custom-icon",
+                                html: `
+                                    <div style="position: relative;">
+                                        <div class="marker-background"></div>
+                                        <i class="fa-solid fa-cloud-sun" style="font-size: 20px; color: ${levelColors[level]};"></i>
+                                    </div>
+                                    <div class="station-label" style="margin-top: 5px;">${station.name}</div>
+                                `,
+                                iconSize: [30, 40],
+                                iconAnchor: [15, 40]
+                            }));
+                            calculateTotalLevel();
+                            marker.closePopup();
+                        });
                     });
+                    return container;
                 });
-                return container;
+                markers.push(marker);
             });
-        });
+        }
+
+        // 更新圖例
+        function updateLegend() {
+            const statuses = currentMode === "weather" ? weatherStatuses : marineStatuses;
+            document.getElementById("legendItems").innerHTML = `
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e84c3d;"></div>
+                    <span>${statuses[4]} (等級 4)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f1c40f;"></div>
+                    <span>${statuses[3]} (等級 3)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #30cc70;"></div>
+                    <span>${statuses[2]} (等級 2)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #3598db;"></div>
+                    <span>${statuses[1]} (等級 1)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #bdc3c7;"></div>
+                    <span>${statuses[0]} (等級 0)</span>
+                </div>
+            `;
+            document.querySelector(".legend-controls").innerHTML = `
+                <button class="control-button" onclick="setUserName()">設定名字</button>
+                <button class="control-button" onclick="switchMode('${currentMode === "weather" ? "marine" : "weather"}')">
+                    ${currentMode === "weather" ? "海象站制縣等級" : "氣象站制縣等級"}
+                </button>
+            `;
+        }
+
+        // 切換模式
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById("pageTitle").textContent = currentMode === "weather" ? "臺灣氣象站制縣等級" : "臺灣海象站制縣等級";
+            updateLegend();
+            updateMarkers();
+            calculateTotalLevel();
+        }
+
+        // 初始化
+        localStorage.removeItem("weatherStationVisits");
+        localStorage.removeItem("marineStationVisits");
+        localStorage.removeItem("userName");
+        updateMarkers();
+        calculateTotalLevel();
     </script>
 </body>
 </html>
