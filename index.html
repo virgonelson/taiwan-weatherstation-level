@@ -131,7 +131,7 @@
         }
         .status-button {
             display: block;
-            width: 140px; /* 增加寬度以容納新文字 */
+            width: 140px;
             margin: 5px auto;
             padding: 5px;
             background-color: #f8f8f8;
@@ -197,14 +197,12 @@
             </div>
             <div class="legend-controls">
                 <button class="control-button" onclick="setUserName()">設定名字</button>
-                <button class="control-button" onclick="takeScreenshot()">畫面截圖</button>
             </div>
         </div>
     </div>
     <footer>點選氣象站標記選擇到訪狀態，每次刷新網站計數歸零。 作者: Nelson</footer>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         // 清空 LocalStorage 以確保刷新時歸零
         localStorage.removeItem("weatherStationVisits");
@@ -214,7 +212,7 @@
         let userData = {};
         let userName = "";
 
-        // 氣象站數據
+        // 氣象站數據（新增花蓮氣象雷達站）
         const stations = [
             {"name": "五分山雷達站", "address": "新北市瑞芳區靜安路四段1巷1號", "lat": 25.071182, "lon": 121.781205},
             {"name": "新北", "address": "新北市新店區莒光路29號", "lat": 24.959207, "lon": 121.525196},
@@ -225,6 +223,7 @@
             {"name": "基隆", "address": "基隆市仁愛區港西街6號6樓(海港大樓6樓)", "lat": 25.133314, "lon": 121.740475},
             {"name": "彭佳嶼", "address": "基隆市中正區彭佳嶼", "lat": 25.627975, "lon": 122.079744},
             {"name": "花蓮", "address": "花蓮縣花蓮市花崗街24號", "lat": 23.975128, "lon": 121.613275},
+            {"name": "花蓮雷達站", "address": "花蓮縣花蓮市海岸路15-1號", "lat": 23.98861, "lon": 121.62861},
             {"name": "新屋", "address": "桃園市新屋區東興路二段946號", "lat": 25.006725, "lon": 121.047492},
             {"name": "宜蘭", "address": "宜蘭縣宜蘭市力行路150號", "lat": 24.763975, "lon": 121.756528},
             {"name": "金門", "address": "金門縣金城鎮金水里西海路一段250號", "lat": 24.407306, "lon": 118.289281},
@@ -285,41 +284,14 @@
             }
         }
 
-        // 畫面截圖
-        function takeScreenshot() {
-            const mapInstance = map;
-            mapInstance.invalidateSize(); // 確保地圖尺寸正確
-            mapInstance.once('load', () => {
-                setTimeout(() => {
-                    html2canvas(document.body, {
-                        useCORS: true,
-                        logging: true,
-                        allowTaint: true,
-                        foreignObjectRendering: true,
-                        scale: 2 // 提升清晰度
-                    }).then(canvas => {
-                        const link = document.createElement("a");
-                        link.download = `taiwan-weather-station-map-${new Date().toISOString().split("T")[0]}.png`;
-                        link.href = canvas.toDataURL("image/png");
-                        link.click();
-                    }).catch(err => {
-                        console.error("Screenshot error:", err);
-                        alert("截圖失敗，請嘗試手動截圖（Windows: Win + Shift + S；macOS: Cmd + Shift + 4）。");
-                    });
-                }, 1500); // 延遲 1500ms 確保圖塊載入
-            });
-            // 觸發地圖重新載入
-            mapInstance.fire('load');
-        }
-
         // 初始化總等級
         calculateTotalLevel();
 
         // 初始化地圖
-        const map = L.map("map").setView([24.0, 120.5], 7); // 中心向西北移動
+        const map = L.map("map").setView([24.0, 120.5], 7);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            crossOrigin: "anonymous" // 支援 CORS
+            crossOrigin: "anonymous"
         }).addTo(map);
 
         // 載入臺灣 GeoJSON
